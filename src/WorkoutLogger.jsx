@@ -4,8 +4,9 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import axios from 'axios';
 import { saveOfflineSet, syncOfflineSets } from './syncManager';
 
-export default function WorkoutLogger({ sessionId = 1 }) {
+export default function WorkoutLogger() {
   // Application State
+  const [sessionId, setSessionId] = useState(null);
   const [exercises, setExercises] = useState([]);
   const [previousSets, setPreviousSets] = useState([]);
   const [loggedSets, setLoggedSets] = useState([]);
@@ -42,6 +43,28 @@ export default function WorkoutLogger({ sessionId = 1 }) {
   // Find the dynamic weight step for the math buttons (default to 5 if unknown)
   const currentExerciseData = exercises.find(ex => ex.id === parseInt(selectedExercise));
   const weightStep = currentExerciseData?.weightIncrement || 5;
+
+// Automatically manage daily sessions
+  useEffect(() => {
+    const today = new Date().toDateString();
+    const savedSession = JSON.parse(localStorage.getItem('current_session'));
+
+    // If we already have a session for today, use it!
+    if (savedSession && savedSession.date === today) {
+      setSessionId(savedSession.id);
+    } else {
+      // Otherwise, create a brand new session in the Azure database
+      axios.post('/api/sessions', { overallNotes: "Daily Workout" })
+        .then(response => {
+          setSessionId(response.data.id);
+          localStorage.setItem('current_session', JSON.stringify({ 
+            id: response.data.id, 
+            date: today 
+          }));
+        })
+        .catch(error => console.error("Error creating session:", error));
+    }
+  }, []);
 
   // 1. Listen for PWA Install Prompt
   useEffect(() => {
@@ -192,6 +215,15 @@ export default function WorkoutLogger({ sessionId = 1 }) {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
+
+  // Don't render the app until the database gives us a real Session ID
+  if (!sessionId) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-emerald-400 font-bold animate-pulse">
+        Loading Workout Data...
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto bg-slate-900 min-h-screen text-slate-100 p-4 font-sans pb-20">
