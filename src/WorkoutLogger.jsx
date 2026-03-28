@@ -52,6 +52,7 @@ export default function WorkoutLogger() {
     // If we already have a session for today, use it!
     if (savedSession && savedSession.date === today) {
       setSessionId(savedSession.id);
+      console.log("Existing session found for today. Session ID:", savedSession.id);
     } else {
       // Otherwise, create a brand new session in the Azure database
       axios.post('/api/sessions', { overallNotes: "Daily Workout" })
