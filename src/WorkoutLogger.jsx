@@ -11,6 +11,9 @@ export default function WorkoutLogger() {
   const [previousSets, setPreviousSets] = useState([]);
   const [loggedSets, setLoggedSets] = useState([]);
 
+  const [isEditingIncrement, setIsEditingIncrement] = useState(false);
+  const [customIncrementVal, setCustomIncrementVal] = useState('');
+
   // Graph State
   const [showStats, setShowStats] = useState(false);
   const [chartData, setChartData] = useState([]);
@@ -217,6 +220,23 @@ export default function WorkoutLogger() {
     return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const handleSaveIncrement = () => {
+    const parsed = parseFloat(customIncrementVal);
+    if (isNaN(parsed) || parsed <= 0) return;
+
+    axios.put(`/api/exercises/${selectedExercise}/increment`, { newIncrement: parsed })
+      .then(() => {
+        // Update the React UI instantly
+        const updatedExercises = exercises.map(ex => 
+          ex.id === parseInt(selectedExercise) ? { ...ex, weightIncrement: parsed } : ex
+        );
+        setExercises(updatedExercises);
+        localStorage.setItem('cached_exercises', JSON.stringify(updatedExercises));
+        setIsEditingIncrement(false);
+      })
+      .catch(err => console.error("Error updating increment:", err));
+  };
+
   // Don't render the app until the database gives us a real Session ID
   if (!sessionId) {
     return (
@@ -230,7 +250,7 @@ export default function WorkoutLogger() {
     <div className="max-w-md mx-auto bg-slate-900 min-h-screen text-slate-100 p-4 font-sans pb-20">
       
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-emerald-400">Workout</h2>
         <div className="flex space-x-2 items-center">
           {isInstallable && (
@@ -404,6 +424,33 @@ export default function WorkoutLogger() {
               <button onClick={() => adjustValue(setWeight, -weightStep)} className="p-4 bg-slate-700 rounded-xl active:bg-slate-600"><Minus size={24} /></button>
               <span className="text-3xl font-bold w-20 text-center">{weight}</span>
               <button onClick={() => adjustValue(setWeight, weightStep)} className="p-4 bg-slate-700 rounded-xl active:bg-slate-600"><Plus size={24} /></button>
+            </div>
+
+            {/* NEW: Editable Weight Jump Indicator */}
+            <div className="flex justify-center items-center mt-2 mb-6 text-slate-400 text-sm">
+              {isEditingIncrement ? (
+                <div className="flex items-center space-x-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-emerald-500">
+                  <span className="font-medium">Step:</span>
+                  <input 
+                    type="number" 
+                    value={customIncrementVal} 
+                    onChange={e => setCustomIncrementVal(e.target.value)}
+                    className="w-16 bg-transparent text-emerald-400 text-center font-bold focus:outline-none"
+                    step="0.5"
+                    autoFocus
+                  />
+                  <button onClick={handleSaveIncrement} className="text-emerald-400 hover:text-emerald-300 ml-1"><Check size={16}/></button>
+                  <button onClick={() => setIsEditingIncrement(false)} className="text-red-400 hover:text-red-300 ml-2"><X size={16}/></button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => { setCustomIncrementVal(weightStep); setIsEditingIncrement(true); }} 
+                  className="flex items-center hover:text-emerald-400 transition-colors py-1 px-3 rounded bg-slate-900/50"
+                >
+                  <span>Weight Step: <strong className="text-slate-300">{weightStep}</strong></span>
+                  <span className="ml-2 text-xs bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">Edit ✎</span>
+                </button>
+              )}
             </div>
 
             {/* Reps Control */}
