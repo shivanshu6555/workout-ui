@@ -221,17 +221,7 @@ export default function WorkoutLogger() {
       });
   };
 
-    setLoggedSets([...loggedSets, newSet]);
-    setIsDropSet(false);
-
-    axios.post(`/api/sessions/${sessionId}/sets`, newSet)
-      .then(response => console.log("Saved directly!"))
-      .catch(error => {
-        saveOfflineSet(sessionId, newSet);
-        checkPendingSets();
-      });
-  };
-
+ 
   // Helpers
   const adjustValue = (setter, amount) => {
     setter(prev => {
