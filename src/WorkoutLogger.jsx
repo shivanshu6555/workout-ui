@@ -52,21 +52,11 @@ export default function WorkoutLogger() {
     const today = new Date().toDateString();
     const savedSession = JSON.parse(localStorage.getItem('current_session'));
 
-    // If we already have a session for today, use it!
+    // If we already have a session for today, load it.
+    // If not, do NOTHING yet! We will create it when they log their first set.
     if (savedSession && savedSession.date === today) {
       setSessionId(savedSession.id);
       console.log("Existing session found for today. Session ID:", savedSession.id);
-    } else {
-      // Otherwise, create a brand new session in the Azure database
-      axios.post('/api/sessions', { overallNotes: "Daily Workout" })
-        .then(response => {
-          setSessionId(response.data.id);
-          localStorage.setItem('current_session', JSON.stringify({ 
-            id: response.data.id, 
-            date: today 
-          }));
-        })
-        .catch(error => console.error("Error creating session:", error));
     }
   }, []);
 
@@ -184,16 +174,52 @@ export default function WorkoutLogger() {
       .catch(error => console.error("Error adding exercise:", error));
   };
 
-  // 6. Log the Set
-  const handleLogSet = () => {
+// 6. Log the Set
+  const handleLogSet = async () => {
+    let activeSessionId = sessionId;
+
+    // 1. If we don't have a session for today yet, create it right now!
+    if (!activeSessionId) {
+      try {
+        const today = new Date().toDateString();
+        const response = await axios.post('/api/sessions', { overallNotes: "Daily Workout" });
+        activeSessionId = response.data.id;
+        
+        // Save it to state and local storage so subsequent sets use the same ID
+        setSessionId(activeSessionId);
+        localStorage.setItem('current_session', JSON.stringify({ 
+          id: activeSessionId, 
+          date: today 
+        }));
+      } catch (error) {
+        console.error("Failed to create session:", error);
+        alert("Network error: Could not start the workout session.");
+        return; // Stop them from logging if the server is unreachable
+      }
+    }
+
+    // 2. Prepare the set data
     const newSet = { 
       exerciseId: parseInt(selectedExercise), 
       weight, 
       reps, 
       targetReps, 
       isDropSet,
-      unit // Save whether this was lbs or kg
+      unit 
     };
+
+    // 3. Optimistically update the UI instantly
+    setLoggedSets([...loggedSets, newSet]);
+    setIsDropSet(false);
+
+    // 4. Save the set to the database using the active ID
+    axios.post(`/api/sessions/${activeSessionId}/sets`, newSet)
+      .then(response => console.log("Saved directly!"))
+      .catch(error => {
+        saveOfflineSet(activeSessionId, newSet);
+        checkPendingSets();
+      });
+  };
 
     setLoggedSets([...loggedSets, newSet]);
     setIsDropSet(false);
@@ -238,13 +264,13 @@ export default function WorkoutLogger() {
   };
 
   // Don't render the app until the database gives us a real Session ID
-  if (!sessionId) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-emerald-400 font-bold animate-pulse">
-        Loading Workout Data...
-      </div>
-    );
-  }
+  // if (!sessionId) {
+  //   return (
+  //     <div className="min-h-screen bg-slate-900 flex items-center justify-center text-emerald-400 font-bold animate-pulse">
+  //       Loading Workout Data...
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="max-w-md mx-auto bg-slate-900 min-h-screen text-slate-100 p-4 font-sans pb-20">
